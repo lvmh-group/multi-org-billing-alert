@@ -14,6 +14,7 @@ func main() {
 
 	r.HandleFunc("/pubsub", handler.HandlePubsubMessage).Methods(http.MethodPost)
 	r.HandleFunc("/http", handler.UpsertBudgetAlert).Methods(http.MethodPost)
+	r.HandleFunc("/api/projects", handler.RestGetBudgetAlert).Methods(http.MethodGet)
 	r.HandleFunc("/http/projectid/{projectid}", handler.GetBudgetAlert).Methods(http.MethodGet)
 	r.HandleFunc("/http/projectid/{projectid}", handler.DeleteBudgetAlert).Methods(http.MethodDelete)
 	r.HandleFunc("/http/alertname/{alertname}", handler.GetBudgetAlert).Methods(http.MethodGet)

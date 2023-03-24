@@ -11,6 +11,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"strings"
 )
 
 /*
@@ -74,6 +75,39 @@ func getAlertName(r *http.Request) (name string, err error) {
 		name = alertName
 	}
 	return
+}
+func RestGetBudgetAlert(w http.ResponseWriter, r *http.Request) {
+	names := strings.Split(r.URL.Query().Get("id"), ",")
+	w.Header().Add("Content-type", "application/json")
+
+	if len(names) < 2 && len(names[0]) == 0 {
+		resp := &model.Error{
+			ProjectID: "not provided",
+			Error:     "id in the QueryString is empty or not present",
+			Help:      "format is : /api/projects?id=project1,project2 ",
+		}
+		ErrorJson, _ := json.Marshal(resp)
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprint(w, string(ErrorJson))
+		return
+	}
+	billingAlerts, billingAlertErrors, err := internal.RestGetBillingAlert(r.Context(), names)
+	if err != nil {
+		log.Printf("internal.GetBillingAlert: %v\n", err)
+		http.Error(w, err.Error(), httperrors.GetHttpCode(err))
+		return
+	}
+	allInOne := []interface{}{}
+	for _, allerte := range billingAlerts {
+		allInOne = append(allInOne, allerte)
+	}
+	for _, allerte := range billingAlertErrors {
+		allInOne = append(allInOne, allerte)
+	}
+	w.WriteHeader(http.StatusOK)
+	output, _ := json.Marshal(allInOne)
+	fmt.Fprint(w, string(output))
+
 }
 
 func UpsertBudgetAlert(w http.ResponseWriter, r *http.Request) {

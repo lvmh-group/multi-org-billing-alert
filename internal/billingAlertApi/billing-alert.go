@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 
 	budgetApi "cloud.google.com/go/billing/budgets/apiv1"
 	budgetModel "cloud.google.com/go/billing/budgets/apiv1/budgetspb"
@@ -31,7 +32,8 @@ var defaultThresholds = []*budgetModel.ThresholdRule{ //predefined threshold
 	},
 	{
 		ThresholdPercent: 1.0,
-	}}
+	},
+}
 
 var client *budgetApi.BudgetClient = nil
 var clientResourceManager *ressourceManager.Service = nil
@@ -83,6 +85,72 @@ func UpsertBillingAlert(ctx context.Context, message *model.BillingAlert) (billi
 }
 
 func getExistingBillingAlert(ctx context.Context, alertName string) (b *budgetModel.Budget, err error) {
+	req := &budgetModel.ListBudgetsRequest{
+		Parent: getBillingParent(),
+	}
+	budgets := client.ListBudgets(ctx, req)
+
+	displayName := getDisplayName(alertName)
+	for {
+		budget, err := budgets.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			log.Printf("budgets.Next: %+v\n", err)
+			return nil, err
+		}
+		if budget.DisplayName == displayName {
+			if b == nil {
+				b = budget
+			} else {
+				err = errors.New("2 or more budget exists") //internal error, should not exist.
+				log.Printf("impossible to get the budget, %+v, for this budget Name %s \n", err, displayName)
+				return nil, err
+			}
+		}
+	}
+	return
+}
+
+func RestgetExistingBillingAlert(ctx context.Context, alertNames []string) (buffer []*budgetModel.Budget, bufferError []*model.Error, err error) {
+	req := &budgetModel.ListBudgetsRequest{
+		Parent: getBillingParent(),
+	}
+	budgets := client.ListBudgets(ctx, req)
+
+	for {
+		budget, err := budgets.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			resp := &model.Error{
+				Error: fmt.Sprintf("Internal Error budgets.Next: %+v", err),
+			}
+			log.Printf("budgets.Next: %+v\n", err)
+			bufferError = append(bufferError, resp)
+		}
+		alerteName := strings.Trim(budget.DisplayName, "billing-")
+		if stringInSlice(alerteName, alertNames) == true {
+			buffer = append(buffer, budget)
+			alertNames = popSlice(alerteName, alertNames)
+
+		}
+	}
+	if len(alertNames) > 0 {
+		for _, item := range alertNames {
+			notFound := &model.Error{
+				ProjectID: item,
+				Error:     "Not Found",
+			}
+			bufferError = append(bufferError, notFound)
+		}
+	}
+	return
+}
+
+func getExistingMultiBillingAlert(ctx context.Context, alertName string) (b *budgetModel.Budget, err error) {
 	req := &budgetModel.ListBudgetsRequest{
 		Parent: getBillingParent(),
 	}
@@ -230,9 +298,20 @@ func GetBillingAlert(ctx context.Context, alertName string) (billingAlert *model
 	return
 }
 
+func RestGetBillingAlert(ctx context.Context, alertNames []string) (billingAlerts []*model.BillingAlert, billingAlertsErrors []*model.Error, err error) {
+
+	b, errors, err := RestgetExistingBillingAlert(ctx, alertNames)
+	if err != nil {
+		return
+	}
+	billingAlertsErrors = errors
+
+	billingAlerts, err = RestcreateBillingAlertResponse(ctx, alertNames, b)
+	return
+}
+
 func createBillingAlertResponse(ctx context.Context, alertName string, budget *budgetModel.Budget) (billingAlert *model.BillingAlert, err error) {
 	//Prepare response
-	fmt.Println(len(budget.NotificationsRule.MonitoringNotificationChannels))
 	emails, err := getEmailList(ctx, budget)
 	if err != nil {
 		return
@@ -258,6 +337,43 @@ func createBillingAlertResponse(ctx context.Context, alertName string, budget *b
 		}
 	} else {
 		billingAlert.ProjectID = projectList[0]
+	}
+	return
+}
+
+func RestcreateBillingAlertResponse(ctx context.Context, alertNames []string, budgets []*budgetModel.Budget) (billingAlerts []*model.BillingAlert, err error) {
+	//Prepare response
+	for _, budget := range budgets {
+		emails, errs := getEmailList(ctx, budget)
+		if errs != nil {
+			//
+			//
+			log.Printf("%+v\n", errs)
+		}
+		fmt.Println(len(emails))
+
+		billingAlert := &model.BillingAlert{
+			Project:       strings.Trim(budget.DisplayName, "billing-"),
+			MonthlyBudget: float32(budget.Amount.GetSpecifiedAmount().Units) + (float32(budget.Amount.GetSpecifiedAmount().Nanos) / 1000000000),
+			Emails:        emails,
+			Thresholds:    getThresholds(budget),
+		}
+
+		projectList, err := getProjectIds(ctx, budget.BudgetFilter.Projects)
+		if err != nil {
+			log.Printf("Project not found on GCP\n")
+		}
+
+		if len(budget.BudgetFilter.GetProjects()) > 1 ||
+			(len(budget.BudgetFilter.GetProjects()) == 1 && stringInSlice(projectList[0], alertNames) == false) {
+			billingAlert.GroupAlert = &model.GroupAlert{
+				ProjectIds: projectList,
+				AlertName:  stringMatchInSlice(projectList[0], alertNames),
+			}
+		} else {
+			billingAlert.ProjectID = projectList[0]
+		}
+		billingAlerts = append(billingAlerts, billingAlert)
 	}
 	return
 }
@@ -323,5 +439,32 @@ func DeleteBillingAlert(ctx context.Context, alertName string) (billingAlert *mo
 	//Update state
 	billingAlert.State = billing_state.Deleted
 
+	return
+}
+
+func stringInSlice(a string, list []string) bool {
+	for _, b := range list {
+		if strings.Contains(b, a) {
+			return true
+		}
+	}
+	return false
+}
+func stringMatchInSlice(a string, list []string) string {
+	for _, b := range list {
+		if strings.Contains(b, a) {
+			return b
+		}
+	}
+	return ""
+}
+
+func popSlice(item string, slice []string) (ret []string) {
+	for _, str := range slice {
+		if str == item {
+			continue
+		}
+		ret = append(ret, str)
+	}
 	return
 }
