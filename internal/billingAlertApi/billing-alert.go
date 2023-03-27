@@ -353,7 +353,6 @@ func RestcreateBillingAlertResponse(ctx context.Context, alertNames []string, bu
 		fmt.Println(len(emails))
 
 		billingAlert := &model.BillingAlert{
-			Project:       strings.Trim(budget.DisplayName, "billing-"),
 			MonthlyBudget: float32(budget.Amount.GetSpecifiedAmount().Units) + (float32(budget.Amount.GetSpecifiedAmount().Nanos) / 1000000000),
 			Emails:        emails,
 			Thresholds:    getThresholds(budget),
@@ -366,9 +365,11 @@ func RestcreateBillingAlertResponse(ctx context.Context, alertNames []string, bu
 
 		if len(budget.BudgetFilter.GetProjects()) > 1 ||
 			(len(budget.BudgetFilter.GetProjects()) == 1 && stringInSlice(projectList[0], alertNames) == false) {
+			fmt.Println(stringMatchInSlice(projectList[0], alertNames))
+			fmt.Println(".............................")
 			billingAlert.GroupAlert = &model.GroupAlert{
 				ProjectIds: projectList,
-				AlertName:  stringMatchInSlice(projectList[0], alertNames),
+				AlertName:  strings.Trim(budget.DisplayName, "billing-"),
 			}
 		} else {
 			billingAlert.ProjectID = projectList[0]
