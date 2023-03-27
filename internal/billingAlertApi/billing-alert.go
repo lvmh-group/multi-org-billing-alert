@@ -133,8 +133,6 @@ func RestgetExistingBillingAlert(ctx context.Context, alertNames []string) (buff
 		}
 		alerteName := strings.TrimPrefix(budget.DisplayName, "billing-")
 		if stringInSlice(alerteName, alertNames) == true {
-			fmt.Println(budget)
-			fmt.Println(alerteName)
 			buffer = append(buffer, budget)
 			alertNames = popSlice(alerteName, alertNames)
 
@@ -338,7 +336,15 @@ func createBillingAlertResponse(ctx context.Context, alertName string, budget *b
 			AlertName:  alertName,
 		}
 	} else {
-		billingAlert.ProjectID = projectList[0]
+		if len(projectList) == 0 {
+			billingAlert.Warning = fmt.Sprintf("Project '%s': Not Found on GCP", alertName)
+		} else {
+			billingAlert.ProjectID = projectList[0]
+		}
+		billingAlert.GroupAlert = &model.GroupAlert{
+			AlertName:  alertName,
+			ProjectIds: projectList,
+		}
 	}
 	return
 }
@@ -364,15 +370,23 @@ func RestcreateBillingAlertResponse(ctx context.Context, alertNames []string, bu
 		if err != nil {
 			log.Printf("Project not found on GCP\n")
 		}
-
+		name := strings.TrimPrefix(budget.DisplayName, "billing-")
 		if len(budget.BudgetFilter.GetProjects()) > 1 ||
 			(len(budget.BudgetFilter.GetProjects()) == 1 && stringInSlice(projectList[0], alertNames) == false) {
 			billingAlert.GroupAlert = &model.GroupAlert{
 				ProjectIds: projectList,
-				AlertName:  strings.TrimPrefix(budget.DisplayName, "billing-"),
+				AlertName:  name,
 			}
 		} else {
-			billingAlert.ProjectID = projectList[0]
+			if len(projectList) == 0 {
+				billingAlert.Warning = fmt.Sprintf("Project '%s': Not Found on GCP", name)
+			} else {
+				billingAlert.ProjectID = projectList[0]
+			}
+			billingAlert.GroupAlert = &model.GroupAlert{
+				AlertName:  name,
+				ProjectIds: projectList,
+			}
 		}
 		billingAlerts = append(billingAlerts, billingAlert)
 	}
