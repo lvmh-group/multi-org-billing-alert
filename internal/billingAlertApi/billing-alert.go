@@ -131,8 +131,10 @@ func RestgetExistingBillingAlert(ctx context.Context, alertNames []string) (buff
 			log.Printf("budgets.Next: %+v\n", err)
 			bufferError = append(bufferError, resp)
 		}
-		alerteName := strings.Trim(budget.DisplayName, "billing-")
+		alerteName := strings.TrimPrefix(budget.DisplayName, "billing-")
 		if stringInSlice(alerteName, alertNames) == true {
+			fmt.Println(budget)
+			fmt.Println(alerteName)
 			buffer = append(buffer, budget)
 			alertNames = popSlice(alerteName, alertNames)
 
@@ -365,11 +367,9 @@ func RestcreateBillingAlertResponse(ctx context.Context, alertNames []string, bu
 
 		if len(budget.BudgetFilter.GetProjects()) > 1 ||
 			(len(budget.BudgetFilter.GetProjects()) == 1 && stringInSlice(projectList[0], alertNames) == false) {
-			fmt.Println(stringMatchInSlice(projectList[0], alertNames))
-			fmt.Println(".............................")
 			billingAlert.GroupAlert = &model.GroupAlert{
 				ProjectIds: projectList,
-				AlertName:  strings.Trim(budget.DisplayName, "billing-"),
+				AlertName:  strings.TrimPrefix(budget.DisplayName, "billing-"),
 			}
 		} else {
 			billingAlert.ProjectID = projectList[0]
