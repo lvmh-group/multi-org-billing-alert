@@ -3,7 +3,7 @@ package model
 import billing_state "gblaquiere.dev/multi-org-billing-alert/model/billing-state"
 
 type BillingAlert struct {
-	Project       string              `json:"project,omitempty"`
+	Warning       string              `json:"warning,omitempty"`
 	ProjectID     string              `json:"project_id,omitempty"`
 	GroupAlert    *GroupAlert         `json:"group_alert,omitempty"`
 	MonthlyBudget float32             `json:"monthly_budget"`
