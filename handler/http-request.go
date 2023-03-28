@@ -78,14 +78,25 @@ func getAlertName(r *http.Request) (name string, err error) {
 	return
 }
 func RestGetBudgetAlert(w http.ResponseWriter, r *http.Request) {
-	names := strings.Split(r.URL.Query().Get("id"), ",")
-	w.Header().Add("Content-type", "application/json")
+	qsId, exists := r.URL.Query()["id"]
+	fmt.Println(exists)
+	var names []string
+	if exists {
+		names = strings.Split(qsId[0], ",")
+	} else {
+		vars := mux.Vars(r)
+		projectIds := vars[projectIdParam]
+		if projectIds != "" {
+			names = strings.Split(projectIds, ",")
+		}
+	}
 
-	if len(names) < 2 && len(names[0]) == 0 {
+	w.Header().Add("Content-type", "application/json")
+	if len(names) == 1 && len(names[0]) == 0 || len(names) == 0 {
 		resp := &model.Error{
 			ProjectID: "not provided",
-			Error:     "id in the QueryString is empty or not present",
-			Help:      "format is : /api/projects?id=project1,project2 ",
+			Error:     "ProjectID is empty or not present",
+			Help:      "format is : /http/projects/project1,project2 or /http/projects?id=project1,project2",
 		}
 		ErrorJson, _ := json.Marshal(resp)
 		w.WriteHeader(http.StatusBadRequest)
