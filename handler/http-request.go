@@ -79,7 +79,6 @@ func getAlertName(r *http.Request) (name string, err error) {
 }
 func RestGetBudgetAlert(w http.ResponseWriter, r *http.Request) {
 	qsId, exists := r.URL.Query()["id"]
-	fmt.Println(exists)
 	var names []string
 	if exists {
 		names = strings.Split(qsId[0], ",")
