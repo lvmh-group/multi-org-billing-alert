@@ -77,6 +77,25 @@ func getAlertName(r *http.Request) (name string, err error) {
 	}
 	return
 }
+func GetUserMail(r *http.Request) (email string, err error) {
+	bearer := strings.TrimPrefix(r.Header["Authorization"][0], "Bearer ")
+	res, err := http.Get("https://oauth2.googleapis.com/tokeninfo?id_token=" + bearer)
+	if err != nil {
+		email = ""
+		return
+	}
+
+	body, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		email = ""
+		return
+	}
+	var data model.InfoToken
+	//var data map[string]any
+	json.Unmarshal(body, &data)
+	email = data.Email
+	return
+}
 func RestGetBudgetAlert(w http.ResponseWriter, r *http.Request) {
 	qsId, exists := r.URL.Query()["id"]
 	var names []string
@@ -89,7 +108,17 @@ func RestGetBudgetAlert(w http.ResponseWriter, r *http.Request) {
 			names = strings.Split(projectIds, ",")
 		}
 	}
-
+	userEmail, err := GetUserMail(r)
+	if err != nil {
+		resp := &model.Error{
+			Error: "Auth error",
+			Help:  "Unsure you are the  header 'Authorization: Bearer' in your request ",
+		}
+		ErrorJson, _ := json.Marshal(resp)
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprint(w, string(ErrorJson))
+		return
+	}
 	w.Header().Add("Content-type", "application/json")
 	if len(names) == 1 && len(names[0]) == 0 || len(names) == 0 {
 		resp := &model.Error{
@@ -102,7 +131,7 @@ func RestGetBudgetAlert(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, string(ErrorJson))
 		return
 	}
-	billingAlerts, billingAlertErrors, err := internal.RestGetBillingAlert(r.Context(), names)
+	billingAlerts, billingAlertErrors, err := internal.RestGetBillingAlert(r.Context(), names, userEmail)
 	if err != nil {
 		log.Printf("internal.GetBillingAlert: %v\n", err)
 		http.Error(w, err.Error(), httperrors.GetHttpCode(err))

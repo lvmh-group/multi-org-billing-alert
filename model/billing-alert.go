@@ -24,3 +24,8 @@ type Error struct {
 	Warning   string `json:"warning,omitempty"`
 	Help      string `json:"help,omitempty"`
 }
+
+type InfoToken struct {
+	Email string `json:"email"`
+	Exp   string `json:"exp"`
+}

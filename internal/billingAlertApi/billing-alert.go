@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	budgetApi "cloud.google.com/go/billing/budgets/apiv1"
 	budgetModel "cloud.google.com/go/billing/budgets/apiv1/budgetspb"
@@ -15,6 +16,7 @@ import (
 	"gblaquiere.dev/multi-org-billing-alert/internal/notificationChannelApi"
 	"gblaquiere.dev/multi-org-billing-alert/model"
 	billing_state "gblaquiere.dev/multi-org-billing-alert/model/billing-state"
+	"google.golang.org/api/cloudresourcemanager/v1"
 	ressourceManager "google.golang.org/api/cloudresourcemanager/v3"
 	"google.golang.org/api/iterator"
 	"google.golang.org/genproto/googleapis/type/money"
@@ -113,7 +115,8 @@ func getExistingBillingAlert(ctx context.Context, alertName string) (b *budgetMo
 	return
 }
 
-func RestgetExistingBillingAlert(ctx context.Context, alertNames []string) (buffer []*budgetModel.Budget, bufferError []*model.Error, err error) {
+func RestgetExistingBillingAlert(ctx context.Context, alertNames []string, userEmail string) (buffer []*budgetModel.Budget, bufferError []*model.Error, err error) {
+	projects, deniedProjects := userProjects(alertNames, userEmail)
 	req := &budgetModel.ListBudgetsRequest{
 		Parent: getBillingParent(),
 	}
@@ -132,20 +135,27 @@ func RestgetExistingBillingAlert(ctx context.Context, alertNames []string) (buff
 			bufferError = append(bufferError, resp)
 		}
 		alerteName := strings.TrimPrefix(budget.DisplayName, "billing-")
-		if stringInSlice(alerteName, alertNames) == true {
+		if stringInSlice(alerteName, projects) == true {
 			buffer = append(buffer, budget)
-			alertNames = popSlice(alerteName, alertNames)
+			projects = popSlice(alerteName, projects)
 
 		}
 	}
-	if len(alertNames) > 0 {
-		for _, item := range alertNames {
+	if len(projects) > 0 {
+		for _, item := range projects {
 			notFound := &model.Error{
 				ProjectID: item,
 				Error:     "Not Found",
 			}
 			bufferError = append(bufferError, notFound)
 		}
+	}
+	for _, p := range deniedProjects {
+		denied := &model.Error{
+			ProjectID: p,
+			Error:     "Access denied or not exist",
+		}
+		bufferError = append(bufferError, denied)
 	}
 	return
 }
@@ -298,9 +308,9 @@ func GetBillingAlert(ctx context.Context, alertName string) (billingAlert *model
 	return
 }
 
-func RestGetBillingAlert(ctx context.Context, alertNames []string) (billingAlerts []*model.BillingAlert, billingAlertsErrors []*model.Error, err error) {
+func RestGetBillingAlert(ctx context.Context, alertNames []string, userEmail string) (billingAlerts []*model.BillingAlert, billingAlertsErrors []*model.Error, err error) {
 
-	b, errors, err := RestgetExistingBillingAlert(ctx, alertNames)
+	b, errors, err := RestgetExistingBillingAlert(ctx, alertNames, userEmail)
 	if err != nil {
 		return
 	}
@@ -358,7 +368,6 @@ func RestcreateBillingAlertResponse(ctx context.Context, alertNames []string, bu
 			//
 			log.Printf("%+v\n", errs)
 		}
-		fmt.Println(len(emails))
 
 		billingAlert := &model.BillingAlert{
 			MonthlyBudget: float32(budget.Amount.GetSpecifiedAmount().Units) + (float32(budget.Amount.GetSpecifiedAmount().Nanos) / 1000000000),
@@ -481,5 +490,40 @@ func popSlice(item string, slice []string) (ret []string) {
 		}
 		ret = append(ret, str)
 	}
+	return
+}
+
+func userProjects(requestedProjects []string, email string) (autorized []string, denied []string) {
+	ctx := context.Background()
+	for _, projectId := range requestedProjects {
+
+		var role string = "roles/editor"
+
+		ctx, cancel := context.WithTimeout(ctx, time.Second*10)
+		crmService, err := cloudresourcemanager.NewService(ctx)
+		defer cancel()
+		request := new(cloudresourcemanager.GetIamPolicyRequest)
+		policy, err := crmService.Projects.GetIamPolicy(projectId, request).Do()
+		if err != nil {
+			fmt.Printf("Projects.GetIamPolicy: %v\n", err)
+			denied = append(denied, projectId)
+			continue
+		}
+
+		var binding *cloudresourcemanager.Binding
+		for _, b := range policy.Bindings {
+			if b.Role == role {
+				binding = b
+				break
+			}
+		}
+		if stringInSlice(email, binding.Members) == true {
+			autorized = append(autorized, projectId)
+		} else {
+			denied = append(denied, projectId)
+		}
+	}
+	fmt.Printf("%+v\n", denied)
+	fmt.Printf("%+v\n", autorized)
 	return
 }
