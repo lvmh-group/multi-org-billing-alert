@@ -11,6 +11,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"regexp"
 	"strings"
 )
 
@@ -20,6 +21,7 @@ import (
 
 var projectIdParam = "projectid"
 var alertNameParam = "alertname"
+var reBearer, _ = regexp.Compile(`^\s*Bearer\s+`)
 
 func DeleteBudgetAlert(w http.ResponseWriter, r *http.Request) {
 
@@ -78,8 +80,23 @@ func getAlertName(r *http.Request) (name string, err error) {
 	return
 }
 func GetUserMail(r *http.Request) (email string, err error) {
-	bearer := strings.TrimPrefix(r.Header["Authorization"][0], "Bearer ")
-	res, err := http.Get("https://oauth2.googleapis.com/tokeninfo?id_token=" + bearer)
+	authHeaders, exists := r.Header["Authorization"]
+	if exists == false {
+		email = ""
+		return
+	}
+	var token string = ""
+	for _, b := range authHeaders {
+		matched := reBearer.MatchString(b)
+		if matched {
+			token = reBearer.ReplaceAllString(b, "")
+		}
+	}
+	if token == "" {
+		email = ""
+		return
+	}
+	res, err := http.Get("https://oauth2.googleapis.com/tokeninfo?id_token=" + token)
 	if err != nil {
 		email = ""
 		return
@@ -109,10 +126,10 @@ func RestGetBudgetAlert(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	userEmail, err := GetUserMail(r)
-	if err != nil {
+	if err != nil || userEmail == "" {
 		resp := &model.Error{
 			Error: "Auth error",
-			Help:  "Unsure you are the  header 'Authorization: Bearer' in your request ",
+			Help:  "Unsure you are the  header 'Authorization: Bearer $(gcloud auth print-identity-token)' in your request ",
 		}
 		ErrorJson, _ := json.Marshal(resp)
 		w.WriteHeader(http.StatusBadRequest)

@@ -504,6 +504,7 @@ func userProjects(requestedProjects []string, email string) (autorized []string,
 		defer cancel()
 		request := new(cloudresourcemanager.GetIamPolicyRequest)
 		policy, err := crmService.Projects.GetIamPolicy(projectId, request).Do()
+
 		if err != nil {
 			fmt.Printf("Projects.GetIamPolicy: %v\n", err)
 			denied = append(denied, projectId)
@@ -523,7 +524,7 @@ func userProjects(requestedProjects []string, email string) (autorized []string,
 			denied = append(denied, projectId)
 		}
 	}
-	fmt.Printf("%+v\n", denied)
-	fmt.Printf("%+v\n", autorized)
+	//fmt.Printf("\ndenied projects %+v\n", denied)
+	//fmt.Printf("autorized projects%+v\n\n", autorized)
 	return
 }
