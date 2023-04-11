@@ -395,13 +395,15 @@ func RestcreateBillingAlertResponse(ctx context.Context, alertNames []string, bu
 
 func getProjectIds(ctx context.Context, projects []string) (projectList []string, err error) {
 	for _, project := range projects {
-		p, err := clientResourceManager.Projects.Get(project).Context(ctx).Do()
-		if err != nil {
-			log.Printf("resourceManager.GetProject: %+v; deleted?\n", err)
-			projectList = append(projectList, fmt.Sprintf("%s (unknown)", project))
-		} else {
-			projectList = append(projectList, p.ProjectId)
-		}
+		//p, err := clientResourceManager.Projects.Get(project).Context(ctx).Do()
+		//if err != nil {
+		//	log.Printf("resourceManager.GetProject: %+v; deleted?\n", err)
+		//	projectList = append(projectList, fmt.Sprintf("%s (unknown)", project))
+		//} else {
+		//	projectList = append(projectList, p.ProjectId)
+		//}
+        projectList = append(projectList, project)
+
 	}
 	return
 }
