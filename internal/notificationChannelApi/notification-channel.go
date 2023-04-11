@@ -1,15 +1,16 @@
 package notificationChannelApi
 
 import (
-	"cloud.google.com/go/compute/metadata"
-	monitoringApi "cloud.google.com/go/monitoring/apiv3"
 	"context"
 	"fmt"
+	"log"
+	"os"
+
+	"cloud.google.com/go/compute/metadata"
+	monitoringApi "cloud.google.com/go/monitoring/apiv3"
 	"gblaquiere.dev/multi-org-billing-alert/model"
 	"google.golang.org/api/iterator"
 	"google.golang.org/genproto/googleapis/monitoring/v3"
-	"log"
-	"os"
 )
 
 var client *monitoringApi.NotificationChannelClient

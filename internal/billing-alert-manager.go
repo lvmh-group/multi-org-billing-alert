@@ -66,6 +66,10 @@ func GetBillingAlert(ctx context.Context, projectId string) (billingAlert *model
 	return
 }
 
+func RestGetBillingAlert(ctx context.Context, projectIds []string) (billingAlert []*model.BillingAlert, billingAlertErrors []*model.Error, err error) {
+	billingAlert, billingAlertErrors, err = billingAlertApi.RestGetBillingAlert(ctx, projectIds)
+	return
+}
 func DeleteBillingAlert(ctx context.Context, projectId string) (billingAlert *model.BillingAlert, err error) {
 
 	if projectId == "" {
