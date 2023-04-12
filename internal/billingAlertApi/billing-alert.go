@@ -316,7 +316,6 @@ func createBillingAlertResponse(ctx context.Context, alertName string, budget *b
 	if err != nil {
 		return
 	}
-	fmt.Println(len(emails))
 
 	billingAlert = &model.BillingAlert{
 		MonthlyBudget: float32(budget.Amount.GetSpecifiedAmount().Units) + (float32(budget.Amount.GetSpecifiedAmount().Nanos) / 1000000000),
@@ -324,10 +323,7 @@ func createBillingAlertResponse(ctx context.Context, alertName string, budget *b
 		Thresholds:    getThresholds(budget),
 	}
 
-	projectList, err := getProjectIds(ctx, budget.BudgetFilter.Projects)
-	if err != nil {
-		return nil, err
-	}
+	projectList :=  budget.BudgetFilter.Projects
 
 	if len(budget.BudgetFilter.GetProjects()) > 1 ||
 		(len(budget.BudgetFilter.GetProjects()) == 1 && projectList[0] != alertName) {
@@ -358,7 +354,6 @@ func RestcreateBillingAlertResponse(ctx context.Context, alertNames []string, bu
 			//
 			log.Printf("%+v\n", errs)
 		}
-		fmt.Println(len(emails))
 
 		billingAlert := &model.BillingAlert{
 			MonthlyBudget: float32(budget.Amount.GetSpecifiedAmount().Units) + (float32(budget.Amount.GetSpecifiedAmount().Nanos) / 1000000000),
@@ -366,10 +361,8 @@ func RestcreateBillingAlertResponse(ctx context.Context, alertNames []string, bu
 			Thresholds:    getThresholds(budget),
 		}
 
-		projectList, err := getProjectIds(ctx, budget.BudgetFilter.Projects)
-		if err != nil {
-			log.Printf("Project not found on GCP\n")
-		}
+		projectList := budget.BudgetFilter.Projects
+
 		name := strings.TrimPrefix(budget.DisplayName, "billing-")
 		if len(budget.BudgetFilter.GetProjects()) > 1 ||
 			(len(budget.BudgetFilter.GetProjects()) == 1 && stringInSlice(projectList[0], alertNames) == false) {
